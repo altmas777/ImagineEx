@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #0A0A0F;
+  --color-card: #111118;
+  --color-primary-start: #7C3AED;
+  --color-primary-mid: #EC4899;
+  --color-primary-end: #F97316;
+  --color-accent: #06B6D4;
+  --font-body: Inter, sans-serif;
+  --font-heading: "Plus Jakarta Sans", sans-serif;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: white;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+
+  /* Custom dark scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-canvas);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2a35;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f5a;
+  }
+
+  @keyframes scan {
+    0% { top: 0; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  @keyframes shine {
+    100% {
+      left: 125%;
+    }
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#7C3AED] via-[#EC4899] to-[#F97316];
+  }
+  
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-[#7C3AED] via-[#EC4899] to-[#F97316];
+  }
+
+  .border-gradient {
+    position: relative;
+    z-index: 1;
+  }
+  .border-gradient::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1.5px;
+    border-radius: inherit;
+    background: linear-gradient(to right, #7C3AED, #EC4899, #F97316);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: -1;
+  }
+  
+  .noise-bg {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.15;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+}
