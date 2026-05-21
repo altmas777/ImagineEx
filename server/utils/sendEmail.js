@@ -1,7 +1,11 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 
 export const sendEmail = async (options) => {
   try {
+    // Force Node to use IPv4 instead of IPv6 (Fix for Render free tier block)
+    dns.setDefaultResultOrder('ipv4first');
+
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
@@ -13,6 +17,7 @@ export const sendEmail = async (options) => {
       tls: {
         rejectUnauthorized: false // allows self-signed certificates
       },
+      family: 4, // Explicitly tell Node.js net module to use IPv4
       connectionTimeout: 10000, // 10 seconds to connect
       greetingTimeout: 10000, // 10 seconds for greeting
       socketTimeout: 15000 // 15 seconds max
