@@ -12,12 +12,13 @@ export const sendEmail = async (options) => {
       },
       tls: {
         rejectUnauthorized: false // allows self-signed certificates
-      }
+      },
+      connectionTimeout: 10000, // 10 seconds to connect
+      greetingTimeout: 10000, // 10 seconds for greeting
+      socketTimeout: 15000 // 15 seconds max
     });
 
-    // Verify connection configuration
-    await transporter.verify();
-    console.log("✅ SMTP connection verified successfully");
+    // Removed transporter.verify() to speed up and avoid hangs on cloud hosting (Render)
 
     const mailOptions = {
       from: `ImaginEx Security <${process.env.EMAIL_USER}>`,
