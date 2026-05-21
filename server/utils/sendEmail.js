@@ -1,39 +1,53 @@
 // Dual email support:
-// - If RESEND_API_KEY is set → use Resend HTTP API (for Render/production)
+// - If RENDER is true → use Brevo HTTP API (for Render/production)
 // - Otherwise → use Nodemailer Gmail SMTP (for localhost/development)
 
 import nodemailer from 'nodemailer';
 import fetch from 'node-fetch';
 
-// ============ RESEND (HTTP API - works on Render) ============
-const sendViaResend = async (options, htmlContent) => {
-  const apiKey = process.env.RESEND_API_KEY;
+// ============ BREVO (HTTP API - works on Render without domain lock) ============
+const sendViaBrevo = async (options, htmlContent) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.EMAIL_USER || 'imaginexxx697@gmail.com';
 
-  console.log(`📧 Sending email to ${options.email} via Resend API...`);
+  if (!apiKey) {
+    console.error("❌ BREVO_API_KEY is not set in environment variables!");
+    throw new Error("Email service not configured on host");
+  }
 
-  const response = await fetch('https://api.resend.com/emails', {
+  console.log(`📧 Sending email to ${options.email} via Brevo API...`);
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
     },
     body: JSON.stringify({
-      from: 'ImaginEx <onboarding@resend.dev>',
-      to: [options.email],
+      sender: {
+        name: 'ImaginEx Security',
+        email: senderEmail
+      },
+      to: [
+        {
+          email: options.email
+        }
+      ],
       subject: options.subject,
-      text: options.message,
-      html: htmlContent
+      textContent: options.message,
+      htmlContent: htmlContent
     })
   });
 
   const data = await response.json();
 
   if (!response.ok) {
-    console.error("❌ Resend API error:", data);
-    throw new Error(data.message || 'Failed to send email');
+    console.error("❌ Brevo API error:", data);
+    throw new Error(data.message || 'Failed to send email via Brevo');
   }
 
-  console.log("✅ Email sent via Resend! ID:", data.id);
+  console.log("✅ Email sent via Brevo! ID:", data.messageId);
   return data;
 };
 
@@ -81,9 +95,9 @@ export const sendEmail = async (options) => {
   `;
 
   try {
-    if (process.env.RENDER === 'true' && process.env.RESEND_API_KEY) {
-      // Production (Render) → Resend HTTP API
-      return await sendViaResend(options, htmlContent);
+    if (process.env.RENDER === 'true') {
+      // Production (Render) → Brevo HTTP API
+      return await sendViaBrevo(options, htmlContent);
     } else {
       // Local development → Gmail SMTP
       return await sendViaNodemailer(options, htmlContent);
