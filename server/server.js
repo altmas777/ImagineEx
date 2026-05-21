@@ -3,6 +3,10 @@ import dotenv from "dotenv"
 import colors from "colors"
 import connectDB from "./config/dbconfig.js"
 import cors from "cors"
+import dns from 'dns';
+
+// Fix for Render IPv6 ENETUNREACH error with nodemailer
+dns.setDefaultResultOrder('ipv4first');
 
 //Local Imports
 import authRoutes from "./routes/authRoutes.js"
