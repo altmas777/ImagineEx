@@ -75,8 +75,10 @@ const registerUser = async (req , res) => {
     } catch (error) {
         // Remove from pending if email failed
         pendingRegistrations.delete(email);
-        res.status(500)
-        throw new Error("Error sending email");
+        console.error("Register email error:", error.message);
+        return res.status(500).json({
+            message: "Email sending failed. Please try again in a moment."
+        });
     }
 }
 
