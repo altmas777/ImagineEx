@@ -81,7 +81,7 @@ export const sendEmail = async (options) => {
   `;
 
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.RENDER === 'true' && process.env.RESEND_API_KEY) {
       // Production (Render) → Resend HTTP API
       return await sendViaResend(options, htmlContent);
     } else {
