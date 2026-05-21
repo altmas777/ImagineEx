@@ -117,10 +117,55 @@ const updateUser = async (req , res) => {
 }
 
 
+const deleteUser = async (req, res) => {
+    const userId = req.params.uid;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        res.status(404);
+        throw new Error('User Not Found');
+    }
+
+    // Prevent deleting yourself
+    if (req.user._id.toString() === userId) {
+        res.status(400);
+        throw new Error('You cannot delete your own account from admin panel');
+    }
+
+    // Delete all posts by this user (including their Cloudinary images)
+    const userPosts = await Post.find({ user: userId });
+    for (const post of userPosts) {
+        const imageUrl = post.imageLink || post.imageUrl || post.image;
+        if (imageUrl) {
+            try {
+                await deleteFromCloudinary(imageUrl);
+            } catch (err) {
+                // Continue even if cloudinary delete fails
+                console.log('Cloudinary delete error:', err.message);
+            }
+        }
+        await Post.findByIdAndDelete(post._id);
+    }
+
+    // Remove user from followers/followings of other users
+    await User.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+    );
+    await User.updateMany(
+        { followings: userId },
+        { $pull: { followings: userId } }
+    );
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ message: 'User and all associated data deleted successfully', _id: userId });
+}
 
 
-
-const adminController = {getAllUsers , getAllPosts , updatePost , deletePost , getReports , updateUser}
+const adminController = {getAllUsers , getAllPosts , updatePost , deletePost , getReports , updateUser , deleteUser}
 
 
 export default adminController

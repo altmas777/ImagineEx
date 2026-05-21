@@ -10,6 +10,7 @@ router.get("/reports" , protect.forAdmin , adminController.getReports)
 router.put("/user/:uid" , protect.forAdmin , adminController.updateUser)
 router.put("/post/:pid" , protect.forAdmin , adminController.updatePost)
 router.delete("/post/:pid" , protect.forAdmin , adminController.deletePost)
+router.delete("/user/:uid" , protect.forAdmin , adminController.deleteUser)
 
 
 

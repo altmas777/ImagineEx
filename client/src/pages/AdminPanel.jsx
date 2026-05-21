@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { 
   LayoutDashboard, Users, Image as ImageIcon, 
   LogOut, Menu, X, CheckCircle, XCircle, Eye, EyeOff,
-  Shield, Plus, Minus, Edit3, Save, Trash2, AlertTriangle, ArrowLeft
+  Shield, Plus, Minus, Edit3, Save, Trash2, AlertTriangle, ArrowLeft, UserX
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 
@@ -213,11 +213,37 @@ const EditUserModal = ({ user, onClose, onSave }) => {
   );
 };
 
+// Delete User Confirm Modal
+const UserDeleteConfirmModal = ({ user, onClose, onConfirm, isDeleting }) => (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div className="bg-[#111118] border border-red-500/20 rounded-2xl w-full max-w-sm shadow-2xl">
+      <div className="p-6 text-center">
+        <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+          <UserX className="w-7 h-7 text-red-400" />
+        </div>
+        <h3 className="font-bold text-white text-lg mb-2">Delete User?</h3>
+        <p className="text-gray-400 text-sm mb-1">This will permanently delete this user and all their posts.</p>
+        <p className="text-gray-500 text-xs mt-2">User: <span className="text-white font-semibold">{user.name}</span></p>
+        <p className="text-gray-500 text-xs">{user.email}</p>
+      </div>
+      <div className="flex items-center gap-3 p-6 border-t border-white/10">
+        <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-sm font-semibold">Cancel</button>
+        <button onClick={onConfirm} disabled={isDeleting} className="flex-1 py-2.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+          <Trash2 className="w-4 h-4" />
+          {isDeleting ? 'Deleting...' : 'Delete User'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // Users View
 const UsersView = () => {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -231,11 +257,27 @@ const UsersView = () => {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+    setIsDeleting(true);
+    try {
+      await axiosInstance.delete(`/api/admin/user/${deletingUser._id}`);
+      setUsers(prev => prev.filter(u => u._id !== deletingUser._id));
+      toast.success(`User "${deletingUser.name}" deleted successfully!`);
+      setDeletingUser(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   useEffect(() => { fetchUsers(); }, []);
 
   return (
     <div className="space-y-6">
       {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSave={fetchUsers} />}
+      {deletingUser && <UserDeleteConfirmModal user={deletingUser} onClose={() => setDeletingUser(null)} onConfirm={handleDeleteUser} isDeleting={isDeleting} />}
 
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold font-heading">Manage Users</h2>
@@ -251,7 +293,7 @@ const UsersView = () => {
                 <th className="px-6 py-4">Role</th>
                 <th className="px-6 py-4">Credits</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Edit</th>
+                <th className="px-6 py-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -289,13 +331,22 @@ const UsersView = () => {
                     }
                   </td>
                   <td className="px-6 py-4">
-                    <button 
-                      onClick={() => setEditingUser(user)} 
-                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-[#EC4899]/10 hover:text-[#EC4899] transition-colors border border-white/10"
-                      title="Edit User"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setEditingUser(user)} 
+                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-[#EC4899]/10 hover:text-[#EC4899] transition-colors border border-white/10"
+                        title="Edit User"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setDeletingUser(user)} 
+                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-colors border border-white/10"
+                        title="Delete User"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

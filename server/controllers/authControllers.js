@@ -7,6 +7,10 @@ const generateToken = (id) => {
     return jwt.sign({id} , process.env.JWT_SECRET , {expiresIn : '30d'}) 
 }
 
+// In-memory store for pending registrations (OTP not yet verified)
+// Key: email, Value: { name, email, phone, password (hashed), bio, otp, otpExpires }
+const pendingRegistrations = new Map();
+
 const registerUser = async (req , res) => {
 
     const {name , email , phone , password , bio} = req.body
@@ -17,7 +21,7 @@ const registerUser = async (req , res) => {
         throw new Error('Please Fill All Details!!!')
     }
 
-    //Check if user already exists
+    //Check if user already exists in DB
     let userNameExist = await User.findOne({name : name})
     let emailExist = await User.findOne({email : email})
     let phoneExist = await User.findOne({phone : phone})
@@ -27,46 +31,50 @@ const registerUser = async (req , res) => {
         throw new Error("User Already Exists!!")
     }
 
-
     //Hash Password
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt);
 
-    // Register User with OTP
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    let user = await User.create({
-        name, 
-        email, 
-        phone, 
-        password: hashedPassword, 
+    // Store registration data temporarily — DO NOT save to DB yet
+    pendingRegistrations.set(email, {
+        name,
+        email,
+        phone,
+        password: hashedPassword,
         bio,
         otp,
         otpExpires
-    })
+    });
 
-    if(!user){
-        res.status(400)
-        throw new Error("User Not Created")
-    }
+    // Auto-cleanup after 10 minutes if not verified
+    setTimeout(() => {
+        if (pendingRegistrations.has(email)) {
+            const pending = pendingRegistrations.get(email);
+            if (pending.otpExpires < Date.now()) {
+                pendingRegistrations.delete(email);
+            }
+        }
+    }, 10 * 60 * 1000);
 
     try {
         const message = `Welcome to ImaginEx! Your verification code is: ${otp}. It expires in 10 minutes.`;
         await sendEmail({
-            email: user.email,
+            email: email,
             subject: 'ImaginEx - Account Verification',
             message: message
         });
 
         res.status(201).json({
             message: "OTP sent to your email. Please verify.",
-            email: user.email
+            email: email
         })
     } catch (error) {
-        user.otp = undefined;
-        user.otpExpires = undefined;
-        await user.save({ validateBeforeSave: false });
+        // Remove from pending if email failed
+        pendingRegistrations.delete(email);
         res.status(500)
         throw new Error("Error sending email");
     }
@@ -135,11 +143,53 @@ const verifyOTP = async (req, res) => {
         throw new Error("Please provide email and OTP");
     }
 
+    // FIRST: Check if this is a pending new registration (not yet in DB)
+    if (pendingRegistrations.has(email)) {
+        const pending = pendingRegistrations.get(email);
+
+        // Check OTP validity
+        if (pending.otp !== otp || pending.otpExpires < Date.now()) {
+            res.status(400);
+            throw new Error("Invalid or expired OTP");
+        }
+
+        // OTP is valid — NOW create the user in the database
+        const user = await User.create({
+            name: pending.name,
+            email: pending.email,
+            phone: pending.phone,
+            password: pending.password,
+            bio: pending.bio,
+            isVerified: true  // Already verified via OTP
+        });
+
+        // Remove from pending
+        pendingRegistrations.delete(email);
+
+        if (!user) {
+            res.status(400);
+            throw new Error("User Not Created");
+        }
+
+        return res.status(200).json({
+            id: user._id,
+            name: user.name,
+            bio: user.bio,
+            email: user.email,
+            phone: user.phone,
+            isAdmin: user.isAdmin,
+            isActive: user.isActive,
+            credits: user.credits,
+            token: generateToken(user._id)
+        });
+    }
+
+    // SECOND: Check if this is an existing unverified user (e.g. from login flow)
     const user = await User.findOne({ email });
 
     if(!user) {
         res.status(404);
-        throw new Error("User not found");
+        throw new Error("User not found. Please register first.");
     }
 
     if(user.isVerified) {
@@ -182,9 +232,61 @@ const privateController = (req , res) => {
 
 
 
+const resendOTP = async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        res.status(400);
+        throw new Error("Please provide email");
+    }
+
+    // Check pending registrations first
+    if (pendingRegistrations.has(email)) {
+        const pending = pendingRegistrations.get(email);
+        const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        pending.otp = newOtp;
+        pending.otpExpires = Date.now() + 10 * 60 * 1000;
+        pendingRegistrations.set(email, pending);
+
+        try {
+            await sendEmail({
+                email,
+                subject: 'ImaginEx - New Verification Code',
+                message: `Your new verification code is: ${newOtp}. It expires in 10 minutes.`
+            });
+            return res.status(200).json({ message: "New OTP sent to your email.", email });
+        } catch (error) {
+            res.status(500);
+            throw new Error("Error sending email");
+        }
+    }
+
+    // Check existing unverified user
+    const user = await User.findOne({ email, isVerified: false });
+    if (!user) {
+        res.status(404);
+        throw new Error("No pending verification found for this email.");
+    }
+
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = newOtp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+
+    try {
+        await sendEmail({
+            email,
+            subject: 'ImaginEx - New Verification Code',
+            message: `Your new verification code is: ${newOtp}. It expires in 10 minutes.`
+        });
+        return res.status(200).json({ message: "New OTP sent to your email.", email });
+    } catch (error) {
+        res.status(500);
+        throw new Error("Error sending email");
+    }
+}
 
 
-
-const authController = {registerUser , loginUser , verifyOTP, privateController}
+const authController = {registerUser , loginUser , verifyOTP, resendOTP, privateController}
 
 export default authController
